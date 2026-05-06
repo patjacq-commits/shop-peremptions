@@ -89,7 +89,7 @@
     .status-bar{width:3px;height:36px;border-radius:2px;flex-shrink:0}
     .status-bar.exp{background:var(--exp-dot)}.status-bar.crit{background:var(--crit-dot)}.status-bar.warn{background:var(--warn-dot)}.status-bar.ok{background:var(--ok-dot)}.status-bar.removed{background:var(--faint)}
     .product-info{flex:1;min-width:0}
-    .product-name{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .product-name{font-size:14px;font-weight:500;white-space:normal;word-break:break-word;line-height:1.3}
     .product-meta{font-size:11px;color:var(--muted);margin-top:2px}
     .product-right{text-align:right;flex-shrink:0}
     .product-date{font-family:var(--mono);font-size:13px;font-weight:500}
@@ -334,8 +334,7 @@
             <div class="product-days">${getDaysLabel(p.date,p.removed)}</div>
           </div>
           <div class="product-actions">
-            <button class="action-btn check" onclick="toggleRemove('${p.id}')">${p.removed?'↩':'✓'}</button>
-            <button class="action-btn del"   onclick="deleteProduct('${p.id}')">✕</button>
+            <button class="action-btn del" onclick="deleteProduct('${p.id}')">✕</button>
           </div>
         </article>`;
       }).join('')
