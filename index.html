@@ -451,7 +451,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .cat-pill {
@@ -472,6 +472,43 @@
       border-color: var(--accent);
       font-weight: 500;
     }
+
+    /* Champ nouvelle catégorie */
+    .new-cat-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .new-cat-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+    }
+
+    .new-cat-row input:focus { border-color: var(--accent); }
+    .new-cat-row input::placeholder { color: var(--faint); }
+
+    .new-cat-btn {
+      padding: 8px 14px;
+      background: var(--surface2);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .new-cat-btn:active { opacity: 0.7; }
 
     /* Boutons de modal */
     .modal-footer {
@@ -651,6 +688,11 @@
         <button class="cat-pill" onclick="selectCat(this)" data-cat="Plats chauds">🍱 Plats chauds</button>
         <button class="cat-pill" onclick="selectCat(this)" data-cat="Confiseries">🍫 Confiseries</button>
         <button class="cat-pill" onclick="selectCat(this)" data-cat="Autre">📦 Autre</button>
+      </div>
+      <!-- Champ pour créer une nouvelle catégorie à la volée -->
+      <div class="new-cat-row">
+        <input type="text" id="f-new-cat" placeholder="Nouvelle catégorie…" autocomplete="off" maxlength="30">
+        <button class="new-cat-btn" onclick="addCustomCat()">＋ Ajouter</button>
       </div>
     </div>
 
@@ -922,6 +964,7 @@
     document.getElementById('f-date').value = tomorrow.toISOString().split('T')[0];
     document.getElementById('f-name').value = '';
     document.getElementById('f-qty').value = '1';
+    document.getElementById('f-new-cat').value = '';
 
     /* Réinitialise la catégorie sélectionnée */
     document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('selected'));
@@ -948,6 +991,60 @@
     document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('selected'));
     btn.classList.add('selected');
     selectedCat = btn.dataset.cat;
+  }
+
+  /**
+   * Crée une nouvelle catégorie personnalisée à la volée.
+   * Elle est sauvegardée dans localStorage et ajoutée comme pill sélectionnée.
+   */
+  function addCustomCat() {
+    const input = document.getElementById('f-new-cat');
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+
+    /* Vérifie si la catégorie existe déjà */
+    const existing = document.querySelector(`.cat-pill[data-cat="${name}"]`);
+    if (existing) {
+      selectCat(existing);
+      input.value = '';
+      return;
+    }
+
+    /* Sauvegarde les catégories custom dans localStorage */
+    const customCats = JSON.parse(localStorage.getItem('custom_cats') || '[]');
+    if (!customCats.includes(name)) {
+      customCats.push(name);
+      localStorage.setItem('custom_cats', JSON.stringify(customCats));
+    }
+
+    /* Crée et insère la nouvelle pill avant "Autre" */
+    const autrePill = document.querySelector('.cat-pill[data-cat="Autre"]');
+    const btn = document.createElement('button');
+    btn.className = 'cat-pill';
+    btn.setAttribute('data-cat', name);
+    btn.setAttribute('onclick', 'selectCat(this)');
+    btn.textContent = '🏷 ' + name;
+    btn.addEventListener('click', () => selectCat(btn));
+    autrePill.parentNode.insertBefore(btn, autrePill);
+
+    selectCat(btn);
+    input.value = '';
+    showToast(`Catégorie "${name}" ajoutée ✓`);
+  }
+
+  /** Recharge les catégories personnalisées sauvegardées */
+  function loadCustomCats() {
+    const customCats = JSON.parse(localStorage.getItem('custom_cats') || '[]');
+    const autrePill = document.querySelector('.cat-pill[data-cat="Autre"]');
+    customCats.forEach(name => {
+      if (document.querySelector(`.cat-pill[data-cat="${name}"]`)) return;
+      const btn = document.createElement('button');
+      btn.className = 'cat-pill';
+      btn.setAttribute('data-cat', name);
+      btn.textContent = '🏷 ' + name;
+      btn.addEventListener('click', () => selectCat(btn));
+      autrePill.parentNode.insertBefore(btn, autrePill);
+    });
   }
 
   /** Enregistre le produit */
@@ -1084,11 +1181,17 @@
   /* ============================================================
      DÉMARRAGE
      ============================================================ */
+  loadCustomCats();
   render();
 
   /* Support touche Entrée dans le formulaire */
   document.getElementById('f-name').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('f-date').focus();
+  });
+
+  /* Entrée dans le champ nouvelle catégorie → ajoute la catégorie */
+  document.getElementById('f-new-cat').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addCustomCat(); }
   });
 
   /* Fermeture modal avec touche Escape */
