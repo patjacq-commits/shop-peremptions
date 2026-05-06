@@ -246,8 +246,8 @@
   let products     = JSON.parse(localStorage.getItem('expiry_v2') || '[]');
   let activeFilter = 'all';
   /* Historique des produits retirés/expirés (persisté séparément) */
-  let history = JSON.parse(localStorage.getItem('expiry_history') || '[]');
-  function saveHistory() { localStorage.setItem('expiry_history', JSON.stringify(history)); }
+  let expiredLog = JSON.parse(localStorage.getItem('expiry_history') || '[]');
+  function saveHistory() { localStorage.setItem('expiry_history', JSON.stringify(expiredLog)); }
   let selectedCat  = '';
 
   const DEFAULT_CATS = ['Boissons', 'Confiseries', 'Autre'];
@@ -316,13 +316,13 @@
 
     /* --- Vue Historique --- */
     if (activeFilter === 'history') {
-      if (!history.length) {
+      if (!expiredLog.length) {
         listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Aucun historique</div></div>';
         return;
       }
       /* Groupe par mois d'expiration */
       const months = {};
-      [...history].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(h => {
+      [...expiredLog].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(h => {
         const d = new Date(h.date+'T00:00:00');
         const key = d.toLocaleDateString('fr-BE',{month:'long',year:'numeric'});
         if (!months[key]) months[key]=[];
@@ -403,7 +403,7 @@
     /* Si le produit est expiré ou retiré, on l'archive dans l'historique */
     const s = getStatus(p.date, p.removed);
     if (s === 'exp' || p.removed) {
-      history.push({
+      expiredLog.push({
         id: p.id, name: p.name, category: p.category,
         date: p.date, qty: p.qty,
         removedAt: new Date().toISOString().split('T')[0]
@@ -416,7 +416,7 @@
 
   function deleteHistory(id) {
     if (!confirm('Supprimer définitivement cet enregistrement ?')) return;
-    history = history.filter(x=>x.id!==id); saveHistory(); render();
+    expiredLog = expiredLog.filter(x=>x.id!==id); saveHistory(); render();
     showToast('Enregistrement supprimé');
   }
 
