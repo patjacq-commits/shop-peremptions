@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Péremptions">
+  <meta name="description" content="Gestion des dates de péremption — station-service">
+
+  <title>Péremptions Shop</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Google Fonts : DM Sans (display) + DM Mono (données) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================================
+       DESIGN SYSTEM — thème sombre industriel / station-service
+       ============================================================ */
+    :root {
+      --bg:        #0f0f0f;
+      --surface:   #1a1a1a;
+      --surface2:  #242424;
+      --border:    rgba(255,255,255,0.08);
+      --border2:   rgba(255,255,255,0.14);
+
+      --text:      #f0ede8;
+      --muted:     #888580;
+      --faint:     #444;
+
+      /* Statuts */
+      --exp-bg:    #2a1010;
+      --exp-text:  #f47c7c;
+      --exp-dot:   #e24b4a;
+
+      --crit-bg:   #2a1a08;
+      --crit-text: #f4a96a;
+      --crit-dot:  #ef9f27;
+
+      --warn-bg:   #22220a;
+      --warn-text: #d4c84a;
+      --warn-dot:  #c9b800;
+
+      --ok-bg:     #0d1f10;
+      --ok-text:   #74c97a;
+      --ok-dot:    #52b85a;
+
+      --accent:    #e8e0d4;
+      --radius:    14px;
+      --radius-sm: 8px;
+      --font:      'DM Sans', system-ui, sans-serif;
+      --mono:      'DM Mono', monospace;
+
+      /* Safe area (notch / barre de navigation Android) */
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* ---- Reset ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      overscroll-behavior: none; /* empêche le bounce iOS sur le body */
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ---- Layout principal ---- */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-width: 430px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* ============================================================
+       HEADER
+       ============================================================ */
+    .header {
+      padding: calc(var(--sat) + 16px) 20px 0;
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .header-title {
+      font-size: 26px;
+      font-weight: 300;
+      letter-spacing: -0.5px;
+      color: var(--text);
+      line-height: 1.1;
+    }
+
+    .header-title span {
+      font-weight: 500;
+    }
+
+    .header-date {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    .header-add-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      color: #0f0f0f;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.15s, opacity 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .header-add-btn:active { transform: scale(0.92); opacity: 0.85; }
+
+    /* ============================================================
+       STATS CARDS
+       ============================================================ */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      padding: 12px 20px;
+    }
+
+    .stat {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 10px 8px;
+      text-align: center;
+      border: 0.5px solid var(--border);
+    }
+
+    .stat-val {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .stat-lbl {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+      letter-spacing: 0.3px;
+    }
+
+    .stat.exp .stat-val  { color: var(--exp-dot); }
+    .stat.crit .stat-val { color: var(--crit-dot); }
+    .stat.ok .stat-val   { color: var(--ok-dot); }
+    .stat.total .stat-val{ color: var(--text); }
+
+    /* ============================================================
+       BANNIÈRE D'ALERTE
+       ============================================================ */
+    .alert-banner {
+      margin: 0 20px 10px;
+      background: var(--exp-bg);
+      border: 0.5px solid rgba(226,75,74,0.3);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: none;
+    }
+
+    .alert-banner.show { display: block; }
+
+    .alert-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--exp-text);
+      margin-bottom: 4px;
+    }
+
+    .alert-items {
+      font-size: 11px;
+      color: rgba(244,124,124,0.75);
+      line-height: 1.6;
+    }
+
+    /* ============================================================
+       FILTRES (chips scrollables)
+       ============================================================ */
+    .filters-wrap {
+      padding: 0 20px 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filters-wrap::-webkit-scrollbar { display: none; }
+
+    .filters {
+      display: flex;
+      gap: 6px;
+      width: max-content;
+    }
+
+    .chip {
+      font-family: var(--font);
+      font-size: 12px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 0.5px solid var(--border2);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .chip.active {
+      background: var(--accent);
+      color: #0f0f0f;
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+
+    .chip:active { opacity: 0.7; }
+
+    /* ============================================================
+       LISTE DE PRODUITS (scrollable)
+       ============================================================ */
+    .list-wrap {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 20px calc(var(--sab) + 20px);
+    }
+
+    .list-wrap::-webkit-scrollbar { display: none; }
+
+    /* Séparateur de catégorie */
+    .cat-sep {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--faint);
+      padding: 16px 0 6px;
+    }
+
+    /* Carte produit */
+    .product-card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: opacity 0.2s;
+    }
+
+    .product-card.removed { opacity: 0.35; }
+
+    /* Indicateur de statut (barre gauche) */
+    .status-bar {
+      width: 3px;
+      height: 36px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .status-bar.exp  { background: var(--exp-dot); }
+    .status-bar.crit { background: var(--crit-dot); }
+    .status-bar.warn { background: var(--warn-dot); }
+    .status-bar.ok   { background: var(--ok-dot); }
+    .status-bar.removed { background: var(--faint); }
+
+    .product-info { flex: 1; min-width: 0; }
+
+    .product-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .product-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .product-right { text-align: right; flex-shrink: 0; }
+
+    .product-date {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .product-date.exp  { color: var(--exp-text); }
+    .product-date.crit { color: var(--crit-text); }
+    .product-date.warn { color: var(--warn-text); }
+    .product-date.ok   { color: var(--ok-text); }
+    .product-date.removed { color: var(--muted); }
+
+    .product-days {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Actions swipe / boutons */
+    .product-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .action-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      border: 0.5px solid var(--border2);
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .action-btn:active { transform: scale(0.9); }
+    .action-btn.del:active { color: var(--exp-dot); border-color: var(--exp-dot); }
+    .action-btn.check:active { color: var(--ok-dot); border-color: var(--ok-dot); }
+
+    /* État vide */
+    .empty-state {
+      text-align: center;
+      padding: 60px 0 40px;
+      color: var(--muted);
+    }
+
+    .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+    .empty-text { font-size: 14px; }
+
+    /* ============================================================
+       MODAL — Ajout de produit
+       ============================================================ */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 0.5px solid var(--border2);
+      border-radius: 20px 20px 0 0;
+      padding: 20px 20px calc(var(--sab) + 24px);
+      width: 100%;
+      max-width: 430px;
+      animation: slideUp 0.25s cubic-bezier(0.32,0.72,0,1);
+    }
+
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+
+    /* Poignée visuelle */
+    .modal-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--border2);
+      border-radius: 2px;
+      margin: 0 auto 18px;
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 500;
+      margin-bottom: 18px;
+    }
+
+    /* Champs de formulaire */
+    .field { margin-bottom: 14px; }
+
+    .field label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      background: var(--surface2);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      padding: 11px 14px;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus,
+    .field select:focus { border-color: var(--accent); }
+
+    /* Sélecteur de catégorie visuel (pills) */
+    .cat-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .cat-pill {
+      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 0.5px solid var(--border2);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font);
+    }
+
+    .cat-pill.selected {
+      background: var(--accent);
+      color: #0f0f0f;
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Boutons de modal */
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .btn-cancel {
+      flex: 1;
+      padding: 13px;
+      background: var(--surface2);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .btn-save {
+      flex: 2;
+      padding: 13px;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #0f0f0f;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn-save:active { opacity: 0.85; }
+
+    /* ============================================================
+       TOAST (notification légère)
+       ============================================================ */
+    .toast {
+      position: fixed;
+      bottom: calc(var(--sab) + 24px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface2);
+      border: 0.5px solid var(--border2);
+      color: var(--text);
+      font-size: 13px;
+      padding: 10px 18px;
+      border-radius: 20px;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 200;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ============================================================
+       BADGE PWA "installer"
+       ============================================================ */
+    .install-banner {
+      margin: 0 20px 10px;
+      background: var(--surface);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .install-banner.show { display: flex; }
+
+    .install-text {
+      flex: 1;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .install-btn {
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 14px;
+      background: var(--accent);
+      color: #0f0f0f;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: var(--font);
+      flex-shrink: 0;
+    }
+
+    .install-close {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===== HEADER ===== -->
+  <header class="header">
+    <div class="header-top">
+      <div>
+        <h1 class="header-title">pérem<span>ptions</span></h1>
+        <p class="header-date" id="today-label"></p>
+      </div>
+      <button class="header-add-btn" onclick="openModal()" aria-label="Ajouter un produit">＋</button>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="stats" id="stats"></div>
+
+    <!-- Bannière d'alerte urgents -->
+    <div class="alert-banner" id="alert-banner">
+      <p class="alert-title">⚠ Produits urgents</p>
+      <p class="alert-items" id="alert-items"></p>
+    </div>
+
+    <!-- Bannière installation PWA -->
+    <div class="install-banner" id="install-banner">
+      <div class="install-text">Installer l'app sur l'écran d'accueil pour l'utiliser hors ligne.</div>
+      <button class="install-btn" id="install-btn" onclick="installPWA()">Installer</button>
+      <button class="install-close" onclick="dismissInstall()" aria-label="Fermer">×</button>
+    </div>
+
+    <!-- Filtres -->
+    <div class="filters-wrap">
+      <div class="filters" id="filters">
+        <button class="chip active" onclick="setFilter('all',this)">Tous</button>
+        <button class="chip" onclick="setFilter('exp',this)">⬤ Expirés</button>
+        <button class="chip" onclick="setFilter('crit',this)">⬤ ≤ 3 jours</button>
+        <button class="chip" onclick="setFilter('warn',this)">⬤ ≤ 7 jours</button>
+        <button class="chip" onclick="setFilter('ok',this)">⬤ OK</button>
+        <button class="chip" onclick="setFilter('removed',this)">Retirés</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== LISTE ===== -->
+  <main class="list-wrap" id="product-list" role="list"></main>
+
+</div>
+
+<!-- ===== MODAL AJOUT ===== -->
+<div class="modal-overlay" id="modal-overlay" onclick="handleOverlayClick(event)" role="dialog" aria-modal="true" aria-label="Ajouter un produit">
+  <div class="modal" id="modal">
+    <div class="modal-handle"></div>
+    <h2 class="modal-title">Nouveau produit</h2>
+
+    <div class="field">
+      <label for="f-name">Nom du produit</label>
+      <input type="text" id="f-name" placeholder="Ex : Sandwich jambon-beurre" autocomplete="off" enterkeyhint="next">
+    </div>
+
+    <div class="field">
+      <label>Catégorie</label>
+      <div class="cat-picker" id="cat-picker">
+        <button class="cat-pill selected" onclick="selectCat(this)" data-cat="Sandwichs">🥪 Sandwichs</button>
+        <button class="cat-pill" onclick="selectCat(this)" data-cat="Boissons">🧃 Boissons</button>
+        <button class="cat-pill" onclick="selectCat(this)" data-cat="Laitiers">🥛 Laitiers</button>
+        <button class="cat-pill" onclick="selectCat(this)" data-cat="Viennoiseries">🥐 Viennoiseries</button>
+        <button class="cat-pill" onclick="selectCat(this)" data-cat="Plats chauds">🍱 Plats chauds</button>
+        <button class="cat-pill" onclick="selectCat(this)" data-cat="Confiseries">🍫 Confiseries</button>
+        <button class="cat-pill" onclick="selectCat(this)" data-cat="Autre">📦 Autre</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="f-date">Date de péremption</label>
+      <input type="date" id="f-date">
+    </div>
+
+    <div class="field">
+      <label for="f-qty">Quantité en rayon</label>
+      <input type="number" id="f-qty" min="1" max="999" value="1" inputmode="numeric">
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Annuler</button>
+      <button class="btn-save" onclick="saveProduct()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  /* ============================================================
+     ÉTAT DE L'APPLICATION
+     ============================================================ */
+
+  /* Charge les produits depuis localStorage, ou tableau vide */
+  let products = JSON.parse(localStorage.getItem('expiry_v2') || '[]');
+
+  /* Filtre actif */
+  let activeFilter = 'all';
+
+  /* Catégorie sélectionnée dans le formulaire */
+  let selectedCat = 'Sandwichs';
+
+  /* Prompt PWA "beforeinstallprompt" (Android Chrome) */
+  let deferredInstallPrompt = null;
+
+
+  /* ============================================================
+     UTILITAIRES — DATES
+     ============================================================ */
+
+  /**
+   * Retourne le statut d'un produit selon sa date d'expiration.
+   * @param {string} dateStr  - Date ISO YYYY-MM-DD
+   * @param {boolean} removed - Produit retiré du rayon
+   * @returns {'exp'|'crit'|'warn'|'ok'|'removed'}
+   */
+  function getStatus(dateStr, removed) {
+    if (removed) return 'removed';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(dateStr);
+    exp.setHours(0, 0, 0, 0);
+    const diff = Math.floor((exp - today) / 86400000);
+    if (diff < 0)  return 'exp';
+    if (diff <= 3) return 'crit';
+    if (diff <= 7) return 'warn';
+    return 'ok';
+  }
+
+  /**
+   * Retourne une étiquette lisible pour le nombre de jours restants.
+   */
+  function getDaysLabel(dateStr, removed) {
+    if (removed) return 'Retiré du rayon';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const exp = new Date(dateStr);
+    exp.setHours(0, 0, 0, 0);
+    const diff = Math.floor((exp - today) / 86400000);
+    if (diff < -1) return `Expiré il y a ${Math.abs(diff)} jours`;
+    if (diff === -1) return 'Expiré hier';
+    if (diff === 0)  return 'Expire aujourd\'hui !';
+    if (diff === 1)  return 'Expire demain';
+    return `Dans ${diff} jours`;
+  }
+
+  /**
+   * Formate une date YYYY-MM-DD en JJ/MM/AA
+   */
+  function formatDate(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('fr-BE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  }
+
+
+  /* ============================================================
+     SAUVEGARDE
+     ============================================================ */
+  function save() {
+    localStorage.setItem('expiry_v2', JSON.stringify(products));
+  }
+
+
+  /* ============================================================
+     RENDU
+     ============================================================ */
+  function render() {
+    /* --- Date du jour --- */
+    const today = new Date();
+    document.getElementById('today-label').textContent =
+      today.toLocaleDateString('fr-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    /* --- Calcul des compteurs --- */
+    let nExp = 0, nCrit = 0, nWarn = 0, nOk = 0;
+    const urgentNames = [];
+
+    products.forEach(p => {
+      if (p.removed) return;
+      const s = getStatus(p.date, false);
+      if (s === 'exp')  { nExp++;  urgentNames.push(`${p.name} (expiré)`); }
+      if (s === 'crit') { nCrit++; urgentNames.push(`${p.name} — ${getDaysLabel(p.date, false)}`); }
+      if (s === 'warn') nWarn++;
+      if (s === 'ok')   nOk++;
+    });
+
+    /* --- Stats --- */
+    document.getElementById('stats').innerHTML = `
+      <div class="stat exp">
+        <div class="stat-val">${nExp}</div>
+        <div class="stat-lbl">Expirés</div>
+      </div>
+      <div class="stat crit">
+        <div class="stat-val">${nCrit}</div>
+        <div class="stat-lbl">≤ 3j</div>
+      </div>
+      <div class="stat ok">
+        <div class="stat-val">${nOk}</div>
+        <div class="stat-lbl">OK</div>
+      </div>
+      <div class="stat total">
+        <div class="stat-val">${nExp + nCrit + nWarn + nOk}</div>
+        <div class="stat-lbl">Total</div>
+      </div>
+    `;
+
+    /* --- Bannière alerte --- */
+    const banner = document.getElementById('alert-banner');
+    if (urgentNames.length > 0) {
+      banner.classList.add('show');
+      document.getElementById('alert-items').textContent = urgentNames.join(' · ');
+    } else {
+      banner.classList.remove('show');
+    }
+
+    /* --- Filtrage --- */
+    const filtered = products
+      .filter(p => {
+        const s = getStatus(p.date, p.removed);
+        if (activeFilter === 'all')     return !p.removed;
+        if (activeFilter === 'removed') return p.removed;
+        return s === activeFilter;
+      })
+      .sort((a, b) => {
+        /* Les retirés en bas, puis tri par date croissante */
+        if (a.removed && !b.removed) return 1;
+        if (!a.removed && b.removed) return -1;
+        return new Date(a.date) - new Date(b.date);
+      });
+
+    /* --- Rendu de la liste --- */
+    const listEl = document.getElementById('product-list');
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <div class="empty-text">Aucun produit dans cette catégorie</div>
+        </div>
+      `;
+      return;
+    }
+
+    /* Regroupement par catégorie pour affichage */
+    const groups = {};
+    filtered.forEach(p => {
+      if (!groups[p.category]) groups[p.category] = [];
+      groups[p.category].push(p);
+    });
+
+    let html = '';
+    Object.entries(groups).forEach(([cat, items]) => {
+      html += `<p class="cat-sep">${cat}</p>`;
+      items.forEach(p => {
+        const s = getStatus(p.date, p.removed);
+        const statusClass = p.removed ? 'removed' : s;
+        const checkIcon = p.removed ? '↩' : '✓';
+        const checkTitle = p.removed ? 'Remettre en rayon' : 'Retirer du rayon';
+
+        html += `
+          <article class="product-card ${p.removed ? 'removed' : ''}" role="listitem">
+            <div class="status-bar ${statusClass}" aria-hidden="true"></div>
+            <div class="product-info">
+              <div class="product-name">${escapeHtml(p.name)}</div>
+              <div class="product-meta">Qté : ${p.qty}</div>
+            </div>
+            <div class="product-right">
+              <div class="product-date ${statusClass}">${formatDate(p.date)}</div>
+              <div class="product-days">${getDaysLabel(p.date, p.removed)}</div>
+            </div>
+            <div class="product-actions">
+              <button class="action-btn check"
+                onclick="toggleRemove('${p.id}')"
+                title="${checkTitle}"
+                aria-label="${checkTitle}">
+                ${checkIcon}
+              </button>
+              <button class="action-btn del"
+                onclick="deleteProduct('${p.id}')"
+                title="Supprimer"
+                aria-label="Supprimer le produit">
+                ✕
+              </button>
+            </div>
+          </article>
+        `;
+      });
+    });
+
+    listEl.innerHTML = html;
+  }
+
+
+  /* ============================================================
+     ACTIONS PRODUITS
+     ============================================================ */
+
+  /** Bascule le statut "retiré du rayon" */
+  function toggleRemove(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    p.removed = !p.removed;
+    save();
+    render();
+    showToast(p.removed ? 'Retiré du rayon ✓' : 'Remis en rayon ✓');
+  }
+
+  /** Supprime définitivement un produit */
+  function deleteProduct(id) {
+    products = products.filter(x => x.id !== id);
+    save();
+    render();
+    showToast('Produit supprimé');
+  }
+
+
+  /* ============================================================
+     FILTRES
+     ============================================================ */
+  function setFilter(filter, btn) {
+    activeFilter = filter;
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+
+  /* ============================================================
+     MODAL — AJOUT DE PRODUIT
+     ============================================================ */
+  function openModal() {
+    /* Pré-remplit la date au lendemain */
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('f-date').value = tomorrow.toISOString().split('T')[0];
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-qty').value = '1';
+
+    /* Réinitialise la catégorie sélectionnée */
+    document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('selected'));
+    const firstPill = document.querySelector('.cat-pill');
+    if (firstPill) { firstPill.classList.add('selected'); selectedCat = firstPill.dataset.cat; }
+
+    document.getElementById('modal-overlay').classList.add('open');
+
+    /* Focus sur le champ nom après l'animation */
+    setTimeout(() => document.getElementById('f-name').focus(), 250);
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  /** Ferme la modal si clic sur le fond */
+  function handleOverlayClick(event) {
+    if (event.target.id === 'modal-overlay') closeModal();
+  }
+
+  /** Sélectionne une catégorie dans le picker */
+  function selectCat(btn) {
+    document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedCat = btn.dataset.cat;
+  }
+
+  /** Enregistre le produit */
+  function saveProduct() {
+    const name = document.getElementById('f-name').value.trim();
+    const date = document.getElementById('f-date').value;
+    const qty  = parseInt(document.getElementById('f-qty').value) || 1;
+
+    if (!name) {
+      document.getElementById('f-name').focus();
+      document.getElementById('f-name').style.borderColor = 'var(--exp-dot)';
+      setTimeout(() => document.getElementById('f-name').style.borderColor = '', 1500);
+      return;
+    }
+    if (!date) {
+      document.getElementById('f-date').focus();
+      return;
+    }
+
+    products.push({
+      id:       Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      name,
+      category: selectedCat,
+      date,
+      qty,
+      removed:  false,
+      addedAt:  new Date().toISOString()
+    });
+
+    save();
+    closeModal();
+    render();
+    showToast('Produit ajouté ✓');
+  }
+
+
+  /* ============================================================
+     TOAST
+     ============================================================ */
+  let toastTimer = null;
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+
+  /* ============================================================
+     SÉCURITÉ — Échappe le HTML pour éviter les injections XSS
+     ============================================================ */
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+
+  /* ============================================================
+     PWA — Service Worker + Invite d'installation
+     ============================================================ */
+
+  /* Enregistrement du Service Worker */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('[SW] Enregistré :', reg.scope))
+        .catch(err => console.warn('[SW] Échec :', err));
+    });
+  }
+
+  /* Capture l'événement beforeinstallprompt (Android Chrome) */
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+
+    /* Affiche la bannière d'installation si pas déjà ignorée */
+    if (!localStorage.getItem('installDismissed')) {
+      document.getElementById('install-banner').classList.add('show');
+    }
+  });
+
+  /* Déclenche l'installation PWA */
+  function installPWA() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(choice => {
+      if (choice.outcome === 'accepted') {
+        showToast('App installée ! 🎉');
+        document.getElementById('install-banner').classList.remove('show');
+      }
+      deferredInstallPrompt = null;
+    });
+  }
+
+  /* Cache définitivement la bannière d'install */
+  function dismissInstall() {
+    document.getElementById('install-banner').classList.remove('show');
+    localStorage.setItem('installDismissed', '1');
+  }
+
+  /* Masque la bannière si l'app est déjà en mode standalone */
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    localStorage.setItem('installDismissed', '1');
+  }
+
+
+  /* ============================================================
+     DONNÉES DE DÉMONSTRATION (si première utilisation)
+     ============================================================ */
+  if (products.length === 0) {
+    const d = (n) => {
+      const x = new Date();
+      x.setDate(x.getDate() + n);
+      return x.toISOString().split('T')[0];
+    };
+    products = [
+      { id: 'demo1', name: 'Sandwich poulet-crudités',  category: 'Sandwichs',     date: d(-1), qty: 3, removed: false, addedAt: new Date().toISOString() },
+      { id: 'demo2', name: 'Jus d\'orange frais',       category: 'Boissons',      date: d(1),  qty: 6, removed: false, addedAt: new Date().toISOString() },
+      { id: 'demo3', name: 'Yaourt nature',             category: 'Laitiers',      date: d(2),  qty: 4, removed: false, addedAt: new Date().toISOString() },
+      { id: 'demo4', name: 'Croissant beurre',          category: 'Viennoiseries', date: d(6),  qty: 8, removed: false, addedAt: new Date().toISOString() },
+      { id: 'demo5', name: 'Salade César',              category: 'Sandwichs',     date: d(14), qty: 2, removed: false, addedAt: new Date().toISOString() },
+      { id: 'demo6', name: 'Lait demi-écrémé',          category: 'Laitiers',      date: d(0),  qty: 5, removed: false, addedAt: new Date().toISOString() },
+      { id: 'demo7', name: 'Kit Kat',                   category: 'Confiseries',   date: d(30), qty: 12, removed: false, addedAt: new Date().toISOString() },
+    ];
+    save();
+  }
+
+
+  /* ============================================================
+     DÉMARRAGE
+     ============================================================ */
+  render();
+
+  /* Support touche Entrée dans le formulaire */
+  document.getElementById('f-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('f-date').focus();
+  });
+
+  /* Fermeture modal avec touche Escape */
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+  });
+</script>
+
+</body>
+</html>
