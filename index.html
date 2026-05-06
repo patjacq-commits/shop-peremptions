@@ -135,6 +135,18 @@
     .btn-save{flex:2;padding:13px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#0f0f0f;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;transition:opacity 0.15s}
     .btn-save:active{opacity:0.85}
 
+    /* HISTORIQUE */
+    .hist-month { font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); padding:16px 0 6px; display:flex; align-items:center; justify-content:space-between; }
+    .hist-month-count { font-family:var(--mono); font-size:11px; color:var(--faint); }
+    .hist-card { background:var(--surface); border:0.5px solid var(--border); border-radius:var(--radius); padding:10px 14px; margin-bottom:6px; display:flex; align-items:center; gap:12px; opacity:0.7; }
+    .hist-bar { width:3px; height:32px; border-radius:2px; flex-shrink:0; background:var(--faint); }
+    .hist-info { flex:1; min-width:0; }
+    .hist-name { font-size:13px; font-weight:500; white-space:normal; word-break:break-word; line-height:1.3; color:var(--muted); }
+    .hist-meta { font-size:11px; color:var(--faint); margin-top:2px; }
+    .hist-date { font-family:var(--mono); font-size:12px; color:var(--faint); flex-shrink:0; text-align:right; }
+    .hist-del  { width:28px; height:28px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:transparent; color:var(--faint); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .hist-del:active { color:var(--exp-dot); border-color:var(--exp-dot); }
+
     /* TOAST */
     .toast{position:fixed;bottom:calc(var(--sab) + 24px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface2);border:0.5px solid var(--border2);color:var(--text);font-size:13px;padding:10px 18px;border-radius:20px;opacity:0;transition:opacity 0.2s,transform 0.2s;pointer-events:none;white-space:nowrap;z-index:200}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -182,6 +194,7 @@
         <button class="chip" onclick="setFilter('warn',this)">⬤ ≤ 7 jours</button>
         <button class="chip" onclick="setFilter('ok',this)">⬤ OK</button>
         <button class="chip" onclick="setFilter('removed',this)">Retirés</button>
+        <button class="chip" onclick="setFilter('history',this)">📋 Historique</button>
       </div>
     </div>
   </header>
@@ -232,6 +245,9 @@
   /* ---- ÉTAT ---- */
   let products     = JSON.parse(localStorage.getItem('expiry_v2') || '[]');
   let activeFilter = 'all';
+  /* Historique des produits retirés/expirés (persisté séparément) */
+  let history = JSON.parse(localStorage.getItem('expiry_history') || '[]');
+  function saveHistory() { localStorage.setItem('expiry_history', JSON.stringify(history)); }
   let selectedCat  = '';
 
   const DEFAULT_CATS = ['Boissons', 'Confiseries', 'Autre'];
@@ -296,6 +312,39 @@
     if (urgent.length) { banner.classList.add('show'); document.getElementById('alert-items').textContent = urgent.join(' · '); }
     else banner.classList.remove('show');
 
+    const listEl = document.getElementById('product-list');
+
+    /* --- Vue Historique --- */
+    if (activeFilter === 'history') {
+      if (!history.length) {
+        listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Aucun historique</div></div>';
+        return;
+      }
+      /* Groupe par mois d'expiration */
+      const months = {};
+      [...history].sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(h => {
+        const d = new Date(h.date+'T00:00:00');
+        const key = d.toLocaleDateString('fr-BE',{month:'long',year:'numeric'});
+        if (!months[key]) months[key]=[];
+        months[key].push(h);
+      });
+      listEl.innerHTML = Object.entries(months).map(([month,items]) =>
+        `<div class="hist-month">${month}<span class="hist-month-count">${items.length} produit${items.length>1?'s':''}</span></div>` +
+        items.map(h => `
+          <div class="hist-card">
+            <div class="hist-bar"></div>
+            <div class="hist-info">
+              <div class="hist-name">${esc(h.name)}</div>
+              <div class="hist-meta">${esc(h.category)} · Qté : ${h.qty}</div>
+            </div>
+            <div class="hist-date">${formatDate(h.date)}<br><span style="font-size:10px;color:var(--faint)">retiré ${formatDate(h.removedAt)}</span></div>
+            <button class="hist-del" onclick="deleteHistory('${h.id}')" title="Supprimer de l'historique">✕</button>
+          </div>`).join('')
+      ).join('');
+      return;
+    }
+
+    /* --- Vue normale --- */
     const filtered = products
       .filter(p => {
         const s = getStatus(p.date, p.removed);
@@ -309,7 +358,6 @@
         return new Date(a.date)-new Date(b.date);
       });
 
-    const listEl = document.getElementById('product-list');
     if (!filtered.length) {
       listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Aucun produit</div></div>';
       return;
@@ -352,8 +400,24 @@
     const p = products.find(x=>x.id===id);
     if (!p) return;
     if (!confirm(`Supprimer "${p.name}" ?`)) return;
+    /* Si le produit est expiré ou retiré, on l'archive dans l'historique */
+    const s = getStatus(p.date, p.removed);
+    if (s === 'exp' || p.removed) {
+      history.push({
+        id: p.id, name: p.name, category: p.category,
+        date: p.date, qty: p.qty,
+        removedAt: new Date().toISOString().split('T')[0]
+      });
+      saveHistory();
+    }
     products = products.filter(x=>x.id!==id); save(); render();
-    showToast('Produit supprimé');
+    showToast(s==='exp'||p.removed ? 'Archivé dans l'historique ✓' : 'Produit supprimé');
+  }
+
+  function deleteHistory(id) {
+    if (!confirm('Supprimer définitivement cet enregistrement ?')) return;
+    history = history.filter(x=>x.id!==id); saveHistory(); render();
+    showToast('Enregistrement supprimé');
   }
 
   function setFilter(f, btn) {
