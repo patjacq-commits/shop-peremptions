@@ -485,10 +485,12 @@
     if (dw) {
       const day=parseInt(dw[1]), month=MONTHS[dw[2].normalize('NFD').replace(/[\u0300-\u036f]/g,'')]||MONTHS[dw[2]];
       const year = dw[3]?parseInt(dw[3]):new Date().getFullYear();
-      const d = new Date(year, (month||6)-1, day);
+      let yr = year, mo = month||6;
       const today=new Date(); today.setHours(0,0,0,0);
-      if (d<today && !dw[3]) d.setFullYear(year+1);
-      dateStr = d.toISOString().split('T')[0];
+      /* Si la date est déjà passée cette année, on prend l'année suivante */
+      if (new Date(yr, mo-1, day) < today && !dw[3]) yr++;
+      /* Construction directe en local (évite le bug fuseau UTC -1 jour) */
+      dateStr = `${yr}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
       name = name.replace(new RegExp(dw[0],'i'),'').trim();
     }
 
