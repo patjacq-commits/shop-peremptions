@@ -1,16 +1,9 @@
-/* Service Worker sans cache — toujours à jour */
-
-self.addEventListener('install', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))));
-  self.skipWaiting();
-});
-
+/* Service Worker minimal — aucune interférence avec localStorage */
+self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))));
-  self.clients.claim();
+  event.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
-
-/* Toujours réseau, jamais cache */
-self.addEventListener('fetch', event => {
-  event.respondWith(fetch(event.request));
-});
+/* Pas de fetch handler — le navigateur gère tout nativement */
