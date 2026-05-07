@@ -586,10 +586,33 @@ if (!products.length) {
 }
 
 /* ================================================================
+   DIAGNOSTIC localStorage
+================================================================ */
+function diagStorage() {
+  const raw = localStorage.getItem('expiry_v2');
+  const parsed = raw ? JSON.parse(raw) : [];
+  console.log('[DIAG] expiry_v2 raw:', raw);
+  console.log('[DIAG] products count:', parsed.length);
+  console.log('[DIAG] localStorage keys:', Object.keys(localStorage));
+  // Show visible debug bar
+  let bar = document.getElementById('diag-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'diag-bar';
+    bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a3a2a;color:#74c97a;font-size:10px;padding:4px 8px;z-index:999;font-family:monospace';
+    document.body.appendChild(bar);
+  }
+  bar.textContent = `localStorage: ${parsed.length} produit(s) | clé: expiry_v2 | ${new Date().toLocaleTimeString()}`;
+}
+
+/* ================================================================
    DÉMARRAGE
 ================================================================ */
 render();
 renderCats();
+diagStorage();
+// Re-check after 2s to detect if SW clears storage
+setTimeout(diagStorage, 2000);
 document.getElementById('f-newcat').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();addCat();} });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 </script>
