@@ -819,12 +819,16 @@ async function handleBarcode(code) {
   document.getElementById('scan-status').textContent = `Code détecté : ${code} — Recherche…`;
 
   try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,brands,generic_name`);
+    /* Interroge Open Food Facts en français, priorité Belgique */
+    const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_fr,product_name_nl,brands,generic_name,generic_name_fr,countries_tags&lc=fr&cc=be`);
     const data = await res.json();
 
     if (data.status === 1 && data.product) {
       const p = data.product;
-      scannedName = p.product_name || p.generic_name || '';
+      /* Priorité : nom FR > nom générique FR > nom principal > nom NL */
+      scannedName = p.product_name_fr || p.generic_name_fr || p.product_name || p.generic_name || '';
+      /* Capitalise la première lettre */
+      if (scannedName) scannedName = scannedName.charAt(0).toUpperCase() + scannedName.slice(1).toLowerCase();
       const brand = p.brands || '';
 
       if (scannedName) {
