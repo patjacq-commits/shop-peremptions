@@ -218,7 +218,23 @@ const DEF_CATS = ['Boissons', 'Confiseries', 'Autre'];
 function getCustCats()  { return JSON.parse(localStorage.getItem('custom_cats') || '[]'); }
 function saveCustCats(a){ localStorage.setItem('custom_cats', JSON.stringify(a)); }
 function allCats()      { return [...DEF_CATS, ...getCustCats()]; }
-function saveProds()    { localStorage.setItem('expiry_v2',   JSON.stringify(products));   }
+function saveProds() {
+  localStorage.setItem('expiry_v2', JSON.stringify(products));
+  /* Synchronise aussi dans IndexedDB pour que le Service Worker puisse lire les données */
+  syncToIDB('expiry_v2', products);
+}
+
+function syncToIDB(key, value) {
+  const req = indexedDB.open('peremptions-db', 1);
+  req.onupgradeneeded = e => e.target.result.createObjectStore('kv', { keyPath: 'k' });
+  req.onsuccess = e => {
+    try {
+      const db = e.target.result;
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ k: key, v: value });
+    } catch(err) { console.warn('IDB sync error:', err); }
+  };
+}
 function saveLog()      { localStorage.setItem('expiry_hist', JSON.stringify(expiredLog)); }
 
 /* ================================================================
@@ -586,10 +602,100 @@ if (!products.length) {
 }
 
 /* ================================================================
+   NOTIFICATIONS
+================================================================ */
+
+/**
+ * Demande la permission de notifications et enregistre
+ * la synchronisation périodique (une fois par jour).
+ */
+async function setupNotifications() {
+  if (!('Notification' in window)) return;
+
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return;
+
+  /* Enregistre la periodic background sync si disponible */
+  if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.periodicSync.register('check-peremptions', {
+        minInterval: 24 * 60 * 60 * 1000 // 1 fois par jour
+      });
+      console.log('[Notif] Periodic sync enregistré');
+    } catch(e) {
+      console.log('[Notif] Periodic sync non disponible, fallback visibilité');
+    }
+  }
+
+  /* Fallback : vérifie à chaque ouverture/retour sur l'app */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkAndNotify();
+  });
+}
+
+/**
+ * Vérifie les produits qui expirent dans <= 5 jours
+ * et envoie une notification si nécessaire.
+ * Évite de notifier plusieurs fois le même jour.
+ */
+function checkAndNotify() {
+  if (Notification.permission !== 'granted') return;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().split('T')[0];
+
+  /* Évite les doublons : une seule notif par jour */
+  const lastNotif = localStorage.getItem('last_notif_date');
+  if (lastNotif === todayStr) return;
+
+  const soon = products.filter(p => {
+    if (p.removed) return false;
+    const s = status(p.date, false);
+    return s === 'exp' || s === 'crit' || s === 'warn';
+  }).sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  /* Filtre ceux à <= 5 jours */
+  const critical = soon.filter(p => {
+    const exp = new Date(p.date + 'T00:00:00');
+    const diff = Math.floor((exp - today) / 86400000);
+    return diff <= 5;
+  });
+
+  if (!critical.length) return;
+
+  const first = critical[0];
+  const exp = new Date(first.date + 'T00:00:00');
+  const diff = Math.floor((exp - today) / 86400000);
+
+  let body;
+  if (diff < 0)     body = `${first.name} est expiré depuis ${Math.abs(diff)} jour(s)`;
+  else if (diff===0) body = `${first.name} expire aujourd'hui !`;
+  else if (diff===1) body = `${first.name} expire demain`;
+  else               body = `${first.name} expire dans ${diff} jours`;
+
+  if (critical.length > 1) body += ` (+${critical.length-1} autre${critical.length>2?'s':''})`;
+
+  new Notification('⚠ Péremptions Shop', {
+    body,
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="%230f0f0f"/><text y="130" x="96" font-size="100" text-anchor="middle">📦</text></svg>',
+    badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="20" fill="%23e24b4a"/><text y="68" x="48" font-size="60" text-anchor="middle">!</text></svg>',
+    tag: 'peremption-alert',
+    renotify: true
+  });
+
+  localStorage.setItem('last_notif_date', todayStr);
+}
+
+/* ================================================================
    DÉMARRAGE
 ================================================================ */
 render();
 renderCats();
+/* Lance la demande de permission après 2s (meilleure UX) */
+setTimeout(setupNotifications, 2000);
+/* Vérifie immédiatement au chargement */
+setTimeout(checkAndNotify, 3000);
 document.getElementById('f-newcat').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();addCat();} });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 </script>
